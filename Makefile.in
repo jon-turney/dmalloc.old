@@ -15,7 +15,7 @@ bindir = @bindir@
 libdir = @libdir@
 shlibdir = @shlibdir@
 includedir = @includedir@
-docdir = $(prefix)/share/doc/$(MODULE)
+docdir = @docdir@
 
 # default c-compiler
 CC = @CC@
