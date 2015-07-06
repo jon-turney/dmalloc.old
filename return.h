@@ -93,8 +93,12 @@
 
 /*************************************/
 
-/* for i[34]86 machines with GCC */
-#if __i386 && __GNUC__ > 1
+/* for intel machines with GCC */
+#if (__i386 || __x86_64) && (__GNUC__ > 3)
+#define GET_RET_ADDR(file)     ((file)=(char *)__builtin_return_address(0))
+
+/* for i[34]86 machines with older GCC */
+#elif __i386 && __GNUC__ > 1
 
 #define GET_RET_ADDR(file)	asm("movl 4(%%ebp),%%eax ; movl %%eax,%0" : \
 				    "=g" (file) : \
