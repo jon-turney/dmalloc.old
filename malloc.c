@@ -38,22 +38,6 @@
 # include <unistd.h>				/* for write */
 #endif
 
-/*
- * cygwin includes
- */
-#if HAVE_SYS_CYGWIN_H
-# include <sys/cygwin.h>
-#endif
-#if HAVE_STDARG_H
-# include <stdarg.h>
-#endif
-#if HAVE_W32API_WINDEF_H
-# include <w32api/windef.h>
-#endif
-#if HAVE_W32API_WINBASE_H
-# include <w32api/winbase.h>
-#endif
-
 #include "conf.h"				/* up here for _INCLUDE */
 
 #if LOG_PNT_TIMEVAL
@@ -304,6 +288,11 @@ static	void	process_environ(const char *option_str)
     dmalloc_errno = ERROR_LOCK_NOT_CONFIG;
     _dmalloc_die(0);
   }
+#else
+  /* thread_lock_c must start larger than THREAD_INIT_LOCK
+     for the lock to be initialized */	
+  if (_dmalloc_lock_on <= THREAD_INIT_LOCK)
+    thread_lock_c = THREAD_INIT_LOCK + 1;
 #endif
 }
 
@@ -333,9 +322,6 @@ static	int	dmalloc_startup(const char *debug_str)
 {
   static int	some_up_b = 0;
   const char	*env_str;
-#ifdef __CYGWIN__
-  char		env_buf[256];
-#endif
   
   /* have we started already? */
   if (enabled_b) {
@@ -354,15 +340,6 @@ static	int	dmalloc_startup(const char *debug_str)
 #endif
 #endif
     
-    /*
-     * If we are running under Cygwin then getenv may not be safe.  We
-     * try to use the GetEnvironmentVariableA function instead.
-     */
-#if defined(__CYGWIN__) && HAVE_GETENVIRONMENTVARIABLEA
-    /* use this function instead of getenv */
-    GetEnvironmentVariableA(OPTIONS_ENVIRON, env_buf, sizeof(env_buf));
-    env_str = env_buf;
-#else /* ! __CYGWIN__ */
 #if GETENV_SAFE
     /* get the options flag */
     if (debug_str == NULL) {
@@ -375,7 +352,7 @@ static	int	dmalloc_startup(const char *debug_str)
     /* oh, well.  no idea how to get the environmental variables */
     env_str = "";
 #endif /* GETENV_SAFE */
-#endif /* ! __CYGWIN__ */
+
     /* process the environmental variable(s) */
     process_environ(env_str);
     

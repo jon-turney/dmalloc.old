@@ -34,6 +34,7 @@ DEFS = -DHAVE_STDARG_H=@HAVE_STDARG_H@ \
 	$(DEFINES)
 INCS = -I. -I$(srcdir) $(INCLUDES)
 LIBS = -L. @LIBS@
+EXEEXT = @EXEEXT@
 A_OUT = aout@EXEEXT@
 
 MODULE	= dmalloc
@@ -313,7 +314,7 @@ $(UTIL) : $(UTIL).o dmalloc_argv.o compat.o env.o
 	rm -f $@
 	$(CC) $(LDFLAGS) -o $(A_OUT) $(UTIL).o dmalloc_argv.o compat.o env.o \
 		$(LIBS)
-	mv $(A_OUT) $@
+	mv $(A_OUT) $@$(EXEEXT)
 
 # special _th versions of objects with the LOCK_THREADS variable defined to 1
 chunk_th.o : $(srcdir)/chunk.c
@@ -336,7 +337,7 @@ tests : $(TEST) $(TEST_FC)
 $(TEST) : $(TEST).o dmalloc_argv.o $(LIBRARY)
 	rm -f $@
 	$(CC) $(LDFLAGS) -o $(A_OUT) $(TEST).o dmalloc_argv.o $(LIBRARY)
-	mv $(A_OUT) $@
+	mv $(A_OUT) $@$(EXEEXT)
 
 $(TEST_FC) : $(TEST_FC).o dmalloc_argv.o $(LIBRARY)
 	rm -f $@
