@@ -21,6 +21,16 @@
  * $Id: malloc.c,v 1.189 2007/03/25 18:53:41 gray Exp $
  */
 
+#include <errno.h>				/* for ENOMEM EINVAL */
+
+#ifndef ENOMEM
+#define ENOMEM 1
+#endif /*ENOMEM*/
+
+#ifndef EINVAL
+#define EINVAL 2
+#endif /*EINVAL*/
+
 /*
  * This file contains the user-level calls to the memory allocation
  * routines.  It handles a lot of the miscellaneous support garbage for
@@ -696,6 +706,7 @@ void	__fini_dmalloc(void)
 }
 #endif
 
+
 /*
  * DMALLOC_PNT dmalloc_malloc
  *
@@ -763,21 +774,7 @@ DMALLOC_PNT	dmalloc_malloc(const char *file, const int line,
   else if (alignment >= BLOCK_SIZE) {
     align = BLOCK_SIZE;
   }
-  else {
-    /*
-     * NOTE: Currently, there is no support in the library for
-     * memalign on less than block boundaries.  It will be non-trivial
-     * to support valloc with fence-post checking and the lack of the
-     * flag width for dblock allocations.
-     */
-    if (! memalign_warn_b) {
-      dmalloc_message("WARNING: memalign called without library support");
-      memalign_warn_b = 1;
-    }
-    align = 0;
-    /* align = alignment */
-  }
-  
+
   new_p = _dmalloc_chunk_malloc(file, line, size, func_id, align);
   
   check_pnt(file, line, new_p, "malloc");
@@ -802,12 +799,77 @@ DMALLOC_PNT	dmalloc_malloc(const char *file, const int line,
   return new_p;
 }
 
+/*return one if v is a power of two, zero otherwise*/
+static int power_of_two(unsigned int v)
+{
+	unsigned i;
+	for(i=0;i<(sizeof(v)*8);i++) {
+		if((((unsigned int)1)<<i)==v)
+			return 1;
+	}
+	return 0;
+}
+
+
+/*
+ * int dmalloc_posix_memalign
+ *
+ * DESCRIPTION:
+ *
+ * Overloading the posix_memalign(3) function.  Allocate and return a memory
+ * block of a certain size which has been aligned to a certain
+ * alignment.
+ *
+ * RETURNS:
+ *
+ * Success - zero.
+ * EINVAL The alignment argument was not a power of two, or was not a multiple of sizeof(void *).
+ * ENOMEM There was insufficient memory to fulfill the allocation request.
+ *
+ * ARGUMENTS:
+ * memptr -> pointer will be returned here on success
+ *
+ * alignment -> Value to which the allocation must be aligned.  This
+ * should probably be a multiple of 2 with a maximum value equivalent
+ * to the block-size which is often 1k or 4k.
+ *
+ * size -> Number of bytes requested.
+ *
+ * file -> File-name or return-address of the caller.
+ *
+ * line -> Line-number of the caller.
+ *
+ * func_id -> Function-id to identify the type of call.  See
+ * dmalloc.h.
+ *
+ * xalloc_b -> If set to 1 then print an error and exit if we run out
+ * of memory.
+ */
+extern
+int	dmalloc_posix_memalign(const char *file, const int line, DMALLOC_PNT *memptr,
+			       const DMALLOC_SIZE size, const int func_id,
+			       const DMALLOC_SIZE alignment,
+			       const int xalloc_b)
+{
+	DMALLOC_PNT rv;
+  if((NULL==memptr)||(!power_of_two(alignment))||(alignment<sizeof(void*)))
+    return EINVAL;
+
+	rv=dmalloc_malloc(file, line,size, func_id, alignment, xalloc_b);
+	if(NULL==rv)
+		return ENOMEM;
+	*memptr=rv;
+	return 0;
+}
+
+
 /*
  * DMALLOC_PNT dmalloc_realloc
  *
  * DESCRIPTION:
  *
  * Resizes and old pointer to a new number of bytes.
+ * Will destroy previous alignment.
  *
  * RETURNS:
  *
@@ -908,6 +970,7 @@ DMALLOC_PNT	dmalloc_realloc(const char *file, const int line,
   
   return new_p;
 }
+
 
 /*
  * int dmalloc_free
@@ -1186,6 +1249,40 @@ DMALLOC_PNT	memalign(DMALLOC_SIZE alignment, DMALLOC_SIZE size)
 			0 /* no xalloc messages */);
 }
 
+
+/*
+ * int posix_memalign
+ *
+ * DESCRIPTION:
+ *
+ * Overloading the posix_memalign(3) function.  Allocate and return a memory
+ * block of a certain size which has been aligned to a certain
+ * alignment.
+ *
+ * RETURNS:
+ *
+ * Success - zero.
+ * EINVAL The alignment argument was not a power of two, or was not a multiple of sizeof(void *).
+ * ENOMEM There was insufficient memory to fulfill the allocation request.
+ *
+ *
+ * ARGUMENTS:
+ * memptr -> pointer will be returned here on success
+ * alignment -> Value to which the allocation must be aligned.  This
+ * should probably be a multiple of 2 with a maximum value equivalent
+ * to the block-size which is often 1k or 4k.
+ *
+ * size -> Number of bytes requested.
+ */
+#undef posix_memalign
+int	posix_memalign(DMALLOC_PNT *memptr, DMALLOC_SIZE alignment, DMALLOC_SIZE size)
+{
+  char		*file;
+  GET_RET_ADDR(file);
+	return dmalloc_posix_memalign(file, DMALLOC_DEFAULT_LINE, memptr,
+			       size, DMALLOC_FUNC_POSIX_MEMALIGN, alignment,
+			       0);
+}
 /*
  * DMALLOC_PNT valloc
  *
